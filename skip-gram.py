@@ -31,33 +31,49 @@ id_to_word = {i: w for w, i in word_to_id.items()}
 
 token_ids = [word_to_id[w] for w in tokens]
 
-print(tokens)
-print(token_ids)
 
-pairs = generate_pairs(token_ids=token_ids, window=4)
+pairs = generate_pairs(token_ids=token_ids, window=3)
+
 
 V = len(vocab)
-N = 100
 
-W1 = np.random.randn(V, N)
-W2 = np.random.randn(N, V)
 
-m = 1
-lr = 0.1
 
-for epoch in range(200):
-    loss = 0
-    for target, context in pairs:
-        raws = np.dot(W1[target], W2)
-        pred = soft_max(raws)
-        pred[context] -= 1
-        dW2 = np.dot(W1[target].reshape(-1, 1), pred.reshape(1,-1))
-        dv = np.dot(W2, pred)
-        W2 -= lr*dW2
-        W1[target] -= lr*dv
-        # print("loss(", context, "): ", -np.log(pred[context]+1))
-        loss += -np.log(pred[context]+1)
-    print("epoch", epoch, "loss:", loss)
+def train(epochs, pairs, V):
+
+    lr = 0.1
+    N = 10
+
+    W1 = np.random.randn(V, N)
+    W2 = np.random.randn(N, V)
+    
+    epsilon = 1e-9
+    for epoch in range(100):
+        prev_loss = float('inf')
+        loss = 0
+        for target, context in pairs:
+            raws = np.dot(W1[target], W2)
+            pred = soft_max(raws)
+            
+            f = max(pred[context], epsilon)
+            loss += -np.log(f)
+            
+
+            prev_loss = loss
+            
+            pred[context] -= 1
+            dW2 = np.dot(W1[target].reshape(-1, 1), pred.reshape(1,-1))
+            dv = np.dot(W2, pred)
+            W2 -= lr*dW2
+            W1[target] -= lr*dv
+
+        print("epoch", epoch, "loss:", loss)
+        if prev_loss < loss:
+                return W1, W2
+    return W1, W2
+
+
+W1, W2 = train(epochs=100, pairs=pairs, V=V)
 
 p = []
 for word1 in vocab:
@@ -66,10 +82,29 @@ for word1 in vocab:
             continue
         p.append((word1, word2, float(np.sum((W1[word_to_id[word1]]-W1[word_to_id[word2]])**2))))
 s = sorted(p, key=lambda x: x[2])
-for i in range(100):
-    print(s[i])
-print("-"*30)
 
-for i in range(1, 100):
-    print(s[-i])
+while True:
+    try:
+        inp = input("test:")
+        if(inp[0] < 'a'):
+            inp = int(inp)
+            count = 0
+            for (w1, w2, d) in s:
+                if count >= 3:
+                    break
+                if word_to_id[w1] == inp or word_to_id[w2] == inp:
+                    print(w1, w2, d)
+                    count += 1
+        else:
+            count = 0
+            for (w1, w2, d) in s:
+                if count >= 3:
+                    break
+                if w1 == inp or w2 == inp:
+                    print(w1, w2, d)
+                    count += 1
+    except EOFError:
+        break
+
+    
 
