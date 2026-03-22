@@ -1,4 +1,5 @@
 import numpy as np # type: ignore
+from collections import Counter
 import re
 
 def sig(x):
@@ -30,13 +31,20 @@ word_to_id = {w: i for i, w in enumerate(vocab)}
 id_to_word = {i: w for w, i in word_to_id.items()}
 
 token_ids = [word_to_id[w] for w in tokens]
-
+V = len(vocab)
 
 pairs = generate_pairs(token_ids=token_ids, window=3)
 
+word_counter = Counter(token_ids)
+counts = np.array([word_counter[i] for i in range(V)])
+weights = np.power(counts, 0.75)
+probabilities = weights/np.sum(weights)
+noise_size = 10**6
+noise = np.random.choice(V, size=noise_size, p=probabilities)
+
 # --- PARAMS INITIALIZATION --- #
 
-V = len(vocab)
+
 N = 50
 K = 5
 W1 = np.random.randn(V, N)*0.1
@@ -44,6 +52,7 @@ W2 = np.random.randn(V, N)*0.1
 lr = 0.05
 prev = float('inf')
 ups = 0
+pointer = 0
 
 # --- CORE TRAINING LOOP --- #
 
@@ -59,7 +68,15 @@ for epoch in range(10):
 
         x = np.dot(c, w)
         loss -= np.log(sig(x))
-        negatives = np.random.randint(0, V, size=K)
+
+
+        negatives = noise[pointer : pointer+K]
+
+        if len(negatives) < K:
+            num_missing = K - len(negatives)
+            negatives = np.concatenate([negatives, noise[:num_missing]])
+
+        pointer = (pointer+K)%noise_size
         
         for neg in negatives:
             w = W2[neg]
